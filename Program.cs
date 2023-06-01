@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddDbContext<ItemDb>(opt => opt.UseInMemoryDatabase("Items"));
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddDbContextPool<ItemsDb>(opt => 
+    opt.UseNpgsql(builder.Configuration.GetConnectionString("DbConnection")));
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -19,7 +20,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapPost("/items", async (CreateItemRequest request, ItemDb db) =>
+app.MapPost("/items", async (CreateItemRequest request, ItemsDb db) =>
 {
     var newItem = new Item() 
     { 
@@ -33,14 +34,14 @@ app.MapPost("/items", async (CreateItemRequest request, ItemDb db) =>
     return Results.Created($"/tasks/{newItem.Id}", newItem);
 }).WithName("PostItem");
 
-app.MapGet("/items/{id}", async (Guid id, ItemDb db) =>
+app.MapGet("/items/{id}", async (Guid id, ItemsDb db) =>
     await db.Items.FindAsync(id) is Item item 
     ? Results.Ok(item) 
     : Results.NotFound()).WithName("GetItem");
 
-app.MapGet("/items", async (ItemDb db) => await db.Items.ToListAsync());
+app.MapGet("/items", async (ItemsDb db) => await db.Items.ToListAsync());
 
-app.MapPut("/items/{id}/", async (Guid id, UpdateItemRequest request, ItemDb db) =>
+app.MapPut("/items/{id}", async (Guid id, UpdateItemRequest request, ItemsDb db) =>
 {
     var item = await db.Items.FindAsync(id);
 
@@ -54,7 +55,7 @@ app.MapPut("/items/{id}/", async (Guid id, UpdateItemRequest request, ItemDb db)
     return Results.NoContent();
 });
 
-app.MapDelete("/items/{id}", async (Guid id, ItemDb db) =>
+app.MapDelete("/items/{id}", async (Guid id, ItemsDb db) =>
 {
     if (await db.Items.FindAsync(id) is Item item)
     {
@@ -79,9 +80,9 @@ internal record CreateItemRequest(string Header, string? Description);
 
 internal record UpdateItemRequest(string? Header, string? Description);
 
-class ItemDb : DbContext
+public sealed class ItemsDb : DbContext
 {
-    public ItemDb(DbContextOptions<ItemDb> options) : base(options) { }
+    public ItemsDb(DbContextOptions<ItemsDb> options) : base(options) { }
 
     public DbSet<Item> Items => Set<Item>();
 }
